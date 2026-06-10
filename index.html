@@ -419,6 +419,59 @@ body {
 .bubble.ai strong { font-weight: 600; }
 .bubble.ai em { font-style: italic; }
 .bubble.ai hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+
+/* ── CODE SNIPPET (커스텀 마커) ── */
+.code-snippet {
+  margin: 10px 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(108,110,229,0.18);
+  background: rgba(24,24,28,0.04);
+  font-size: 13px;
+}
+.code-snippet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: rgba(108,110,229,0.08);
+  border-bottom: 1px solid rgba(108,110,229,0.12);
+}
+.code-snippet-lang {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Menlo','Consolas',monospace;
+}
+.code-snippet-copy {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-family: var(--font);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.12s, color 0.12s;
+}
+.code-snippet-copy:hover { background: rgba(108,110,229,0.1); color: var(--brand); }
+.code-snippet-copy svg { width: 12px; height: 12px; stroke: currentColor; }
+.code-snippet-body {
+  padding: 14px 16px;
+  overflow-x: auto;
+  white-space: pre;
+  font-family: 'Menlo','Consolas',monospace;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
 .bubble.user {
   max-width: 68%;
   background: var(--brand);
@@ -683,15 +736,103 @@ body {
 }
 .conn-dot.ok { background: #43a047; }
 .conn-dot.err { background: #e53935; }
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 640px) {
+
+  /* 사이드바: 모바일에선 오버레이로 */
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 100%;
+    z-index: 100;
+    width: 260px !important;
+    min-width: 260px !important;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.12);
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease;
+    opacity: 1;
+    padding: 16px 12px 14px !important;
+  }
+  #sidebar.collapsed {
+    transform: translateX(-100%);
+    opacity: 0 !important;
+    width: 260px !important;
+    min-width: 260px !important;
+    padding: 16px 12px 14px !important;
+  }
+  #sidebar:not(.collapsed) {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  /* 사이드바 열릴 때 뒤 어둡게 */
+  #sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.25);
+    z-index: 99;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  #sidebar-overlay.visible { display: block; }
+
+  /* 메인 영역 항상 풀너비 */
+  #main { width: 100%; }
+
+  /* 메시지 너비 여유있게 */
+  .msg-wrap { padding: 12px 14px; }
+  .bubble.user { max-width: 85%; }
+  .bubble.ai { max-width: 100%; }
+
+  /* 입력창 하단 패딩 (iOS 홈바 대응) */
+  #input-wrap { padding: 8px 12px 28px; }
+  #main.is-chat #input-wrap { padding: 8px 12px 28px; }
+
+  /* 입력창 safe area */
+  @supports (padding-bottom: env(safe-area-inset-bottom)) {
+    #input-wrap { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+    #main.is-chat #input-wrap { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+  }
+
+  /* 웰컴 화면 */
+  .welcome-logo { width: 200px; height: 200px; margin-bottom: -40px; margin-top: -50px; }
+  .welcome-title { font-size: 20px; }
+  .welcome-sub { font-size: 13px; margin-bottom: 24px; }
+  #main.is-welcome #welcome-center { padding: 0 16px; }
+
+  /* 힌트 텍스트 모바일에서 숨김 */
+  .input-hint { display: none; }
+
+  /* 모델 pill 모바일 대응 */
+  .send-model-pill { font-size: 11px; padding: 4px 8px; right: -8px; }
+
+  /* 액션 버튼 항상 표시 (hover 없으므로) */
+  .msg-actions { opacity: 1; }
+
+  /* topbar */
+  #topbar { padding: 9px 12px; }
+
+  /* 스크롤 영역 */
+  #main.is-chat #scroll-area { padding: 20px 0 8px; }
+}
+
+@media (max-width: 380px) {
+  .welcome-title { font-size: 18px; }
+  .bubble.user { max-width: 92%; font-size: 13px; }
+  .msg-wrap { padding: 10px 10px; }
+}
 </style>
 </head>
 <body>
 
 <div id="bg-canvas"></div>
+<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <div id="app">
   <!-- SIDEBAR -->
-  <div id="sidebar">
+  <div id="sidebar" class="collapsed">
     <div class="logo-row">
       <span class="logo-name">Luma AI</span>
     </div>
@@ -805,7 +946,7 @@ function renderKatex(el) {
 }
 
 // ── 설정 ──────────────────────────────────────────────────────
-const API_URL = 'https://chubby-feet-relax.loca.lt/chat';  // localtunnel URL을 여기에 입력하세요
+const API_URL = 'https://fresh-seals-ring.loca.lt/chat';  // localtunnel URL을 여기에 입력하세요
 const STORAGE_KEY = 'luma_chats_v2';
 
 // ── 상태 ──────────────────────────────────────────────────────
@@ -894,6 +1035,70 @@ function removeWelcome() {
   if (mainEl.classList.contains('is-welcome')) setChatMode();
 }
 
+// ── 클립보드 복사 헬퍼 ───────────────────────────────────────
+function fallbackCopy(text, cb) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  document.execCommand('copy'); document.body.removeChild(ta); cb();
+}
+
+function copyToClipboard(text, cb) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(cb).catch(() => fallbackCopy(text, cb));
+  } else {
+    fallbackCopy(text, cb);
+  }
+}
+
+// ── 코드 스니펫 빌더 ─────────────────────────────────────────
+function buildCodeSnippet(codeText) {
+  const lines = codeText.split('\n');
+  const knownLangs = ['javascript','js','python','py','html','css','java','c','cpp','c++','c#','csharp','ts','typescript','bash','sh','json','xml','sql','php','ruby','go','rust','swift','kotlin','r','yaml','toml','markdown','md'];
+  let lang = 'code';
+  let body = codeText;
+  if (lines.length > 1 && knownLangs.includes(lines[0].trim().toLowerCase())) {
+    lang = lines[0].trim().toLowerCase();
+    body = lines.slice(1).join('\n');
+    const langMap = { js:'javascript', py:'python', sh:'bash', ts:'typescript', md:'markdown', 'c++':'cpp', 'c#':'csharp' };
+    if (langMap[lang]) lang = langMap[lang];
+  }
+  body = body.replace(/^\n/, '').replace(/\n$/, '');
+
+  const snippet = document.createElement('div');
+  snippet.className = 'code-snippet';
+
+  const header = document.createElement('div');
+  header.className = 'code-snippet-header';
+
+  const langLabel = document.createElement('span');
+  langLabel.className = 'code-snippet-lang';
+  langLabel.textContent = lang;
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'code-snippet-copy';
+  const copyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+  const checkIcon = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  copyBtn.innerHTML = copyIcon + ' 복사';
+  copyBtn.addEventListener('click', () => {
+    copyToClipboard(body, () => {
+      copyBtn.innerHTML = checkIcon + ' 복사됨';
+      setTimeout(() => { copyBtn.innerHTML = copyIcon + ' 복사'; }, 2000);
+    });
+  });
+
+  header.appendChild(langLabel);
+  header.appendChild(copyBtn);
+
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'code-snippet-body';
+  bodyEl.textContent = body;
+
+  snippet.appendChild(header);
+  snippet.appendChild(bodyEl);
+  return snippet;
+}
+
 // ── 메시지 렌더링 ─────────────────────────────────────────────
 function addMessage(text, role) {
   removeWelcome();
@@ -904,12 +1109,27 @@ function addMessage(text, role) {
   row.className = 'msg ' + role;
   const bubble = document.createElement('div');
   bubble.className = 'bubble ' + (role === 'ai' ? 'ai' : 'user');
+
   if (role === 'ai') {
-    bubble.innerHTML = marked.parse(text);
-    renderKatex(bubble);
+    // %^%Code%^% 마커 파싱: 짝수 인덱스 = 일반 텍스트, 홀수 = 코드
+    const MARKER = '%^%Code%^%';
+    const parts = text.split(MARKER);
+    parts.forEach((part, i) => {
+      if (i % 2 === 0) {
+        if (part.trim()) {
+          const mdDiv = document.createElement('div');
+          mdDiv.innerHTML = marked.parse(part);
+          renderKatex(mdDiv);
+          bubble.appendChild(mdDiv);
+        }
+      } else {
+        bubble.appendChild(buildCodeSnippet(part));
+      }
+    });
   } else {
     bubble.textContent = text;
   }
+
   row.appendChild(bubble);
   wrap.appendChild(row);
 
@@ -926,25 +1146,10 @@ function addMessage(text, role) {
     const checkIconSVG = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
     copyBtn.innerHTML = copyIconSVG;
     copyBtn.addEventListener('click', () => {
-      const doCopy = () => {
+      copyToClipboard(text, () => {
         copyBtn.innerHTML = checkIconSVG;
-        setTimeout(() => {
-          copyBtn.innerHTML = copyIconSVG;
-        }, 2000);
-      };
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(doCopy).catch(() => {
-          const ta = document.createElement('textarea');
-          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-          document.body.appendChild(ta); ta.select();
-          document.execCommand('copy'); document.body.removeChild(ta); doCopy();
-        });
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-        document.body.appendChild(ta); ta.select();
-        document.execCommand('copy'); document.body.removeChild(ta); doCopy();
-      }
+        setTimeout(() => { copyBtn.innerHTML = copyIconSVG; }, 2000);
+      });
     });
 
     // 좋아요 버튼
@@ -1078,19 +1283,137 @@ function saveCurrentMessage(role, content) {
   saveChats();
 }
 
-// ── API 호출 ──────────────────────────────────────────────────
-async function callServer(message, history) {
+// ── 스트리밍 AI 버블 생성 ─────────────────────────────────────
+function createStreamBubble() {
+  removeWelcome();
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap';
+  wrap.id = 'stream-wrap';
+
+  const row = document.createElement('div');
+  row.className = 'msg ai';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble ai';
+  bubble.id = 'stream-bubble';
+
+  row.appendChild(bubble);
+  wrap.appendChild(row);
+  chatArea.appendChild(wrap);
+  chatArea.scrollTop = chatArea.scrollHeight;
+  return bubble;
+}
+
+function finalizeStreamBubble(fullText) {
+  const wrap = document.getElementById('stream-wrap');
+  const bubble = document.getElementById('stream-bubble');
+  if (!wrap || !bubble) return;
+
+  // id 제거 후 정식 렌더링
+  wrap.removeAttribute('id');
+  bubble.removeAttribute('id');
+  bubble.innerHTML = '';
+
+  const MARKER = '%^%Code%^%';
+  const parts = fullText.split(MARKER);
+  parts.forEach((part, i) => {
+    if (i % 2 === 0) {
+      if (part.trim()) {
+        const mdDiv = document.createElement('div');
+        mdDiv.innerHTML = marked.parse(part);
+        renderKatex(mdDiv);
+        bubble.appendChild(mdDiv);
+      }
+    } else {
+      bubble.appendChild(buildCodeSnippet(part));
+    }
+  });
+
+  // 액션 버튼 추가
+  const actions = document.createElement('div');
+  actions.className = 'msg-actions';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'msg-action-btn';
+  copyBtn.title = '복사';
+  const copyIconSVG = `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+  const checkIconSVG = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  copyBtn.innerHTML = copyIconSVG;
+  copyBtn.addEventListener('click', () => {
+    copyToClipboard(fullText, () => {
+      copyBtn.innerHTML = checkIconSVG;
+      setTimeout(() => { copyBtn.innerHTML = copyIconSVG; }, 2000);
+    });
+  });
+
+  const likeBtn = document.createElement('button');
+  likeBtn.className = 'msg-action-btn';
+  likeBtn.title = '좋아요';
+  const likeIconSVG = `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/><path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg>`;
+  const likeCheckSVG = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  likeBtn.innerHTML = likeIconSVG;
+  let liked = false;
+  likeBtn.addEventListener('click', () => {
+    liked = !liked;
+    likeBtn.innerHTML = liked ? likeCheckSVG : likeIconSVG;
+  });
+
+  actions.appendChild(copyBtn);
+  actions.appendChild(likeBtn);
+  wrap.appendChild(actions);
+}
+
+// ── 스트리밍 API 호출 ─────────────────────────────────────────
+async function callServerStream(message, history, onChunk) {
   const res = await fetch(API_URL + '?bypass=true', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': 'true' },
-    body: JSON.stringify({ message, history }),
-    signal: AbortSignal.timeout(40000)
+    body: JSON.stringify({ message, history, stream: true }),
+    signal: AbortSignal.timeout(60000)
   });
   if (!res.ok) throw new Error('http error ' + res.status);
+
+  const contentType = res.headers.get('content-type') || '';
+
+  // 서버가 스트리밍(text/event-stream 또는 text/plain chunked)을 지원하는 경우
+  if (res.body && (contentType.includes('text/event-stream') || contentType.includes('text/plain') || contentType.includes('application/octet-stream'))) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // SSE 형식 파싱 (data: ...\n\n)
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // 마지막 불완전 줄 보관
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const chunk = line.slice(6);
+          if (chunk === '[DONE]') return;
+          try {
+            const parsed = JSON.parse(chunk);
+            const token = parsed.token || parsed.text || parsed.content || parsed.delta || '';
+            if (token) onChunk(token);
+          } catch {
+            // JSON 아니면 raw 텍스트로 처리
+            if (chunk.trim()) onChunk(chunk);
+          }
+        } else if (line.trim() && !line.startsWith(':')) {
+          // SSE 형식 아닌 raw chunk
+          onChunk(line);
+        }
+      }
+    }
+    if (buffer.trim()) onChunk(buffer);
+    return;
+  }
+
+  // 스트리밍 미지원 서버 → 일반 JSON 폴백 (한 번에 전달)
   const data = await res.json();
   const reply = data.response || data.text || '';
   if (!reply) throw new Error('empty response');
-  return reply;
+  onChunk(reply);
 }
 
 // ── 메인 전송 ─────────────────────────────────────────────────
@@ -1114,7 +1437,7 @@ async function sendMsg() {
 
   const thisChatId = currentChatId;
 
-  // 히스토리 구성 ([[user, ai], ...])
+  // 히스토리 구성
   const history = [];
   const msgs = chats[thisChatId].messages;
   for (let i = 0; i < msgs.length - 1; i += 2) {
@@ -1134,16 +1457,41 @@ async function sendMsg() {
   showThinking();
   updateThinking('생각하는 중...');
 
+  let fullAnswer = '';
+  let streamStarted = false;
+  const streamBubble = createStreamBubble();
+  // 처음엔 숨겨놓고 thinking 제거 후 표시
+  const streamWrap = document.getElementById('stream-wrap');
+  if (streamWrap) streamWrap.style.display = 'none';
+
   try {
-    const answer = await callServer(text, history);
+    await callServerStream(text, history, (chunk) => {
+      if (!streamStarted) {
+        streamStarted = true;
+        removeThinking();
+        if (streamWrap) streamWrap.style.display = '';
+      }
+      fullAnswer += chunk;
+      // 스트리밍 중엔 plain text로 빠르게 표시 (마커 미포함 구간)
+      if (!fullAnswer.includes('%^%Code%^%')) {
+        streamBubble.textContent = fullAnswer;
+      } else {
+        // 코드 마커 포함 시 간단히 텍스트만 표시 (완료 후 정식 렌더)
+        streamBubble.textContent = fullAnswer.replace(/%\^%Code%\^%[\s\S]*?%\^%Code%\^%/g, '\n[코드 블록]\n');
+      }
+      chatArea.scrollTop = chatArea.scrollHeight;
+    });
+
     removeThinking();
-    saveCurrentMessage('assistant', answer);
     if (currentChatId === thisChatId) {
-      addMessage(answer, 'ai');
+      finalizeStreamBubble(fullAnswer);
+      saveCurrentMessage('assistant', fullAnswer);
       renderSidebar();
     }
   } catch(e) {
     removeThinking();
+    const sw = document.getElementById('stream-wrap');
+    if (sw) sw.remove();
     if (currentChatId === thisChatId) {
       addMessage('서버와 연결할 수 없어요. 잠시 후 다시 시도해 주세요.', 'ai');
     }
@@ -1184,7 +1532,13 @@ function handleKey(e) {
 }
 
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('collapsed');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const isMobile = window.innerWidth <= 640;
+  sidebar.classList.toggle('collapsed');
+  if (isMobile && overlay) {
+    overlay.classList.toggle('visible', !sidebar.classList.contains('collapsed'));
+  }
 }
 
 // ── 파일 첨부 ─────────────────────────────────────────────────
