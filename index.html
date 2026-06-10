@@ -930,38 +930,18 @@ body {
 // ── marked 설정 ───────────────────────────────────────────────
 const renderer = new marked.Renderer();
 renderer.code = function(code, lang) {
-  // lang이 있을 때만 커스텀 스니펫, 없으면 기본 pre
-  if (!lang) return `<pre><code>${code}</code></pre>`;
-  const escapedCode = code
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-  const copyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
-  const checkIcon = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  if (!lang) return `<pre><code>${code
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`;
+  const escaped = code
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return `<div class="code-snippet">
   <div class="code-snippet-header">
     <span class="code-snippet-lang">${lang}</span>
-    <button class="code-snippet-copy" onclick="(function(btn){
-      var raw = btn.closest('.code-snippet').querySelector('.code-snippet-body').innerText;
-      var ci = '${copyIcon.replace(/'/g, "\\'")}';
-      var ki = '${checkIcon.replace(/'/g, "\\'")}';
-      var doCopy = function(){
-        btn.innerHTML = ki + ' 복사됨';
-        setTimeout(function(){ btn.innerHTML = ci + ' 복사'; }, 2000);
-      };
-      if(navigator.clipboard && window.isSecureContext){
-        navigator.clipboard.writeText(raw).then(doCopy).catch(function(){
-          var t=document.createElement('textarea');t.value=raw;t.style.position='fixed';t.style.opacity='0';
-          document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);doCopy();
-        });
-      } else {
-        var t=document.createElement('textarea');t.value=raw;t.style.position='fixed';t.style.opacity='0';
-        document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);doCopy();
-      }
-    })(this)">${copyIcon} 복사</button>
+    <button class="code-snippet-copy" onclick="snippetCopy(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> 복사
+    </button>
   </div>
-  <div class="code-snippet-body">${escapedCode}</div>
+  <div class="code-snippet-body">${escaped}</div>
 </div>`;
 };
 marked.setOptions({ breaks: true, gfm: true, renderer });
@@ -1069,6 +1049,23 @@ function setChatMode() {
 
 function removeWelcome() {
   if (mainEl.classList.contains('is-welcome')) setChatMode();
+}
+
+// ── 코드 스니펫 복사 (marked 렌더러용) ──────────────────────
+function snippetCopy(btn) {
+  const body = btn.closest('.code-snippet').querySelector('.code-snippet-body');
+  const raw = body.innerText;
+  const copyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+  const checkIcon = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const done = () => {
+    btn.innerHTML = checkIcon + ' 복사됨';
+    setTimeout(() => { btn.innerHTML = copyIcon + ' 복사'; }, 2000);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(raw).then(done).catch(() => fallbackCopy(raw, done));
+  } else {
+    fallbackCopy(raw, done);
+  }
 }
 
 // ── 클립보드 복사 헬퍼 ───────────────────────────────────────
