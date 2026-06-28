@@ -69,17 +69,15 @@ ACTION_END
 액션이 여러 개면 여러 블록을 순서대로 작성하세요.
 항상 한국어로 답변하고, 코드는 luau로 표시하세요.`;
 
-// ── Gemini 3.5 Flash 스트리밍 호출 ────────────────────────────
-async function callGemini(apiKey, messages, onChunk) {
-  const contents = [];
-  for (const msg of messages) {
-    contents.push({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    });
-  }
+// ── Gemini 스트리밍 호출 (폴백 포함) ─────────────────────────
+const GEMINI_MODELS = [
+  'gemini-3.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+];
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`;
+async function callGeminiWithModel(apiKey, model, contents) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -93,8 +91,44 @@ async function callGemini(apiKey, messages, onChunk) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    const msg = err?.error?.message || `HTTP ${res.status}`;
+    const retryable = res.status === 429 || res.status === 503 || res.status === 404 ||
+      msg.toLowerCase().includes('high demand') ||
+      msg.toLowerCase().includes('overloaded') ||
+      msg.toLowerCase().includes('unavailable');
+    const error = new Error(msg);
+    error.retryable = retryable;
+    throw error;
   }
+  return res;
+}
+
+async function callGemini(apiKey, messages, onChunk) {
+  const contents = [];
+  for (const msg of messages) {
+    contents.push({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    });
+  }
+
+  let res;
+  let lastError;
+  for (const model of GEMINI_MODELS) {
+    try {
+      res = await callGeminiWithModel(apiKey, model, contents);
+      console.log(`[RobLuma] 모델 사용: ${model}`);
+      break;
+    } catch(e) {
+      lastError = e;
+      if (e.retryable) {
+        console.warn(`[RobLuma] ${model} 실패, 다음 모델로 폴백: ${e.message}`);
+        continue;
+      }
+      throw e;
+    }
+  }
+  if (!res) throw lastError;
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
