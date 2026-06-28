@@ -705,6 +705,63 @@ body {
 .send-model-pill svg { width: 11px; height: 11px; stroke: var(--text-muted); }
 #main.is-chat .send-model-pill { display: none; }
 
+/* ── MODEL POPUP ── */
+#model-popup {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+#model-popup.open { display: block; pointer-events: auto; }
+#model-popup-backdrop {
+  position: absolute;
+  inset: 0;
+}
+#model-popup-box {
+  position: absolute;
+  background: rgba(255,255,255,0.97);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 8px 6px;
+  min-width: 160px;
+  box-shadow: 0 8px 28px rgba(108,110,229,0.13);
+  animation: popupIn 0.16s cubic-bezier(0.34,1.4,0.64,1) both;
+}
+@keyframes popupIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.model-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.model-option:hover { background: rgba(108,110,229,0.09); color: var(--brand); }
+.model-option.selected { color: var(--brand); }
+.model-option-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.model-option-dot.purple { background: var(--brand); }
+.model-option-dot.red    { background: #e53935; }
+
+/* dot 색상 변수 */
+.model-dot.red { background: #e53935; }
+
 /* ── ANIMATIONS ── */
 @keyframes chatFadeIn {
   from { opacity: 0; transform: translateY(6px); }
@@ -873,6 +930,11 @@ body {
       </button>
 
       <div class="topbar-right">
+        <div class="icon-btn" id="robluma-plugin-btn" title="플러그인 연결" style="display:none;" onclick="showPluginCodeModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+          </svg>
+        </div>
         <div class="icon-btn" title="더보기">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
@@ -911,9 +973,9 @@ body {
                 <polyline points="5 12 12 5 19 12"/>
               </svg>
             </button>
-            <div class="send-model-pill">
-              <span class="model-dot"></span>
-              Luma 1.0
+            <div class="send-model-pill" id="send-model-pill" onclick="openModelPopup(event)" style="cursor:pointer;">
+              <span class="model-dot" id="pill-dot"></span>
+              <span id="send-model-label">Luma 1.0</span>
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
@@ -922,6 +984,22 @@ body {
         </div>
         <div class="input-hint">Luma AI는 실수할 수 있어요. 중요한 정보는 꼭 확인하세요.</div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODEL POPUP -->
+<div id="model-popup">
+  <div id="model-popup-backdrop" onclick="closeModelPopup()"></div>
+  <div id="model-popup-box">
+    <div class="model-option selected" data-model="Luma 1.0" data-dot="purple" onclick="selectModel(this)">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--brand);display:inline-block;flex-shrink:0;"></span>Luma 1.0
+    </div>
+    <div class="model-option" data-model="RobLuma" data-dot="purple" onclick="selectModel(this)">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--brand);display:inline-block;flex-shrink:0;"></span>RobLuma
+    </div>
+    <div class="model-option" data-model="Lumo" data-dot="red" onclick="selectModel(this)">
+      <span style="width:6px;height:6px;border-radius:50%;background:#e53935;display:inline-block;flex-shrink:0;"></span>Lumo
     </div>
   </div>
 </div>
@@ -964,6 +1042,7 @@ function renderKatex(el) {
 // ── 설정 ──────────────────────────────────────────────────────
 const API_URL = 'https://lucky-dryers-bathe.loca.lt/chat';  // localtunnel URL을 여기에 입력하세요
 const STORAGE_KEY = 'luma_chats_v2';
+let currentModel = 'Luma 1.0';
 
 // ── 상태 ──────────────────────────────────────────────────────
 const chatArea    = document.getElementById('scroll-area');
@@ -1000,7 +1079,10 @@ async function checkConnection() {
       body: JSON.stringify({ message: 'ping', history: [] }),
       signal: AbortSignal.timeout(6000)
     });
-  } catch(e) {}
+    updatePillDot(res.ok);
+  } catch(e) {
+    updatePillDot(false);
+  }
 }
 
 // ── 상태바 ────────────────────────────────────────────────────
@@ -1449,9 +1531,528 @@ async function callServerStream(message, history, onChunk) {
   onChunk(reply);
 }
 
+// ══════════════════════════════════════════════════════════════
+// ── ROBLUMA: Gemini API 연동 (서버 오프라인 대체) ─────────────
+// ══════════════════════════════════════════════════════════════
+
+let roblumaGeminiKey = null;
+
+// ── 플러그인 연동: 세션별 고유 채널 ID (다중 사용자 분리) ────
+// 각 브라우저 탭마다 고유 ID → 서로 다른 Roblox Studio 인스턴스와 1:1 연결
+let roblumaSessionId = sessionStorage.getItem('robluma_session_id');
+if (!roblumaSessionId) {
+  roblumaSessionId = 'rl_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  sessionStorage.setItem('robluma_session_id', roblumaSessionId);
+}
+
+// 명령 큐: 플러그인이 폴링해서 가져갈 명령들
+// 웹서버 없이 동작: 명령을 window 전역 객체에 저장 + BroadcastChannel로 공유
+// 실제 플러그인은 HttpService로 이 사이트의 /api/commands 엔드포인트를 폴링
+// (서버 없는 환경에서는 사이트가 명령을 표시하고 유저가 플러그인 통해 실행)
+let roblumaCommandQueue = [];
+let roblumaCommandIdCounter = 0;
+
+// BroadcastChannel: 같은 origin 내 다른 탭/창과 통신 (플러그인 시뮬레이터용)
+let roblumaChannel = null;
+try { roblumaChannel = new BroadcastChannel('robluma_' + roblumaSessionId); } catch(e) {}
+
+const ROBLUMA_SYSTEM = `당신은 RobLuma입니다. Roblox Studio 전용 AI 어시스턴트입니다.
+사이트↔플러그인 방식으로 작동합니다: 당신이 생성한 액션이 Roblox Studio 플러그인으로 전송되어 직접 실행됩니다.
+
+[수행 가능한 기능]
+1. 파일 읽기: Roblox Studio의 스크립트/모델 내용 읽기
+2. 블록(파트) 넣기: Workspace에 파트, 모델 배치
+3. UI 생성: StarterGui에 ScreenGui, Frame, TextButton 등 직접 생성 (스크립트로 동적 생성 금지)
+4. 스크립트 생성: Script, LocalScript, ModuleScript 생성 및 삽입
+5. 프로퍼티 수정: 인스턴스 속성 변경
+
+[응답 규칙 - 반드시 준수]
+액션이 필요한 경우 반드시 응답 끝에 아래 형식으로 액션 블록을 포함하세요:
+
+ACTION_START
+{"type":"INSERT_PART","data":{"name":"파트이름","className":"Part","parent":"Workspace","properties":{"Size":"Vector3.new(4,1,4)","BrickColor":"BrickColor.new('Bright red')","Anchored":true}}}
+ACTION_END
+
+또는 스크립트 생성:
+ACTION_START
+{"type":"CREATE_SCRIPT","data":{"name":"스크립트이름","scriptType":"Script","parent":"ServerScriptService","source":"-- 코드 내용\nprint('Hello')"}}
+ACTION_END
+
+또는 UI 생성:
+ACTION_START
+{"type":"CREATE_GUI","data":{"name":"MyGui","parent":"StarterGui","tree":{"className":"ScreenGui","children":[{"className":"Frame","name":"MainFrame","properties":{"Size":"UDim2.new(0.3,0,0.4,0)","Position":"UDim2.new(0.35,0,0.3,0)","BackgroundColor3":"Color3.fromRGB(30,30,30)"},"children":[{"className":"TextLabel","name":"Title","properties":{"Text":"안녕하세요","Size":"UDim2.new(1,0,0.2,0)","TextColor3":"Color3.fromRGB(255,255,255)"}}]}]}}}
+ACTION_END
+
+또는 파일 읽기:
+ACTION_START
+{"type":"READ_FILE","data":{"target":"ServerScriptService.MyScript"}}
+ACTION_END
+
+액션이 여러 개면 여러 블록을 순서대로 작성하세요.
+항상 한국어로 답변하고, 코드는 luau로 표시하세요.`;
+
+// ── 액션 블록 파싱 ─────────────────────────────────────────────
+function parseRoblumaActions(text) {
+  const actions = [];
+  const regex = /ACTION_START\s*([\s\S]*?)\s*ACTION_END/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    try {
+      const action = JSON.parse(match[1].trim());
+      action._id = ++roblumaCommandIdCounter;
+      action._sessionId = roblumaSessionId;
+      action._status = 'pending';
+      actions.push(action);
+    } catch(e) { /* JSON 파싱 실패 무시 */ }
+  }
+  return actions;
+}
+
+// 응답에서 ACTION 블록을 제거한 순수 텍스트 반환
+function stripActions(text) {
+  return text.replace(/ACTION_START[\s\S]*?ACTION_END/g, '').trim();
+}
+
+// ── 액션을 플러그인으로 전송 ────────────────────────────────────
+function dispatchActionsToPlugin(actions) {
+  if (!actions.length) return;
+  roblumaCommandQueue.push(...actions);
+
+  // BroadcastChannel로 브로드캐스트 (같은 탭의 플러그인 패널에 전달)
+  if (roblumaChannel) {
+    roblumaChannel.postMessage({ type: 'COMMANDS', commands: actions });
+  }
+
+  // 액션 패널 업데이트
+  renderActionPanel(actions);
+}
+
+// ── 액션 패널 UI ────────────────────────────────────────────────
+function renderActionPanel(actions) {
+  let panel = document.getElementById('robluma-action-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'robluma-action-panel';
+    panel.style.cssText = [
+      'position:fixed;bottom:24px;right:24px;z-index:500',
+      'width:300px;max-height:400px;overflow-y:auto',
+      'background:rgba(255,255,255,0.97);backdrop-filter:blur(18px)',
+      'border:1px solid rgba(108,110,229,0.2);border-radius:14px',
+      'box-shadow:0 8px 32px rgba(108,110,229,0.15)',
+      'font-family:\'Pretendard\',-apple-system,sans-serif',
+      'opacity:0;transform:translateY(12px)',
+      'transition:opacity 0.28s ease,transform 0.28s ease'
+    ].join(';');
+    document.body.appendChild(panel);
+    requestAnimationFrame(() => {
+      panel.style.opacity = '1';
+      panel.style.transform = 'translateY(0)';
+    });
+  }
+
+  // 헤더 - 전체 큐 보여주기
+  const typeLabel = { INSERT_PART:'블록 삽입', CREATE_SCRIPT:'스크립트 생성', CREATE_GUI:'GUI 생성', READ_FILE:'파일 읽기', SET_PROPERTY:'속성 변경' };
+  const typeIcon  = { INSERT_PART:'⬜', CREATE_SCRIPT:'📄', CREATE_GUI:'🖼️', READ_FILE:'📂', SET_PROPERTY:'⚙️' };
+  const allActions = roblumaCommandQueue; // 전체 큐 표시
+
+  let html = `<div style="padding:12px 14px 8px;border-bottom:1px solid rgba(108,110,229,0.1);display:flex;align-items:center;justify-content:space-between;">
+    <div style="font-size:12px;font-weight:600;color:#6C6EE5;display:flex;align-items:center;gap:6px;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+      플러그인 액션 대기중
+    </div>
+    <button onclick="document.getElementById('robluma-action-panel').remove()" style="background:none;border:none;cursor:pointer;color:#8888a8;font-size:16px;line-height:1;padding:0 2px;">×</button>
+  </div>`;
+
+  for (const a of allActions) {
+    const label = typeLabel[a.type] || a.type;
+    const icon  = typeIcon[a.type] || '▶';
+    const name  = a.data?.name || a.data?.target || '';
+    html += `<div style="padding:10px 14px;border-bottom:1px solid rgba(108,110,229,0.07);display:flex;align-items:center;gap:10px;">
+      <span style="font-size:16px;">${icon}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:600;color:#18181c;">${label}</div>
+        ${name ? `<div style="font-size:11px;color:#8888a8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>` : ''}
+      </div>
+      <div style="width:7px;height:7px;border-radius:50%;background:#f59e0b;flex-shrink:0;" title="대기중"></div>
+    </div>`;
+  }
+
+  html += `<div style="padding:10px 14px;">
+    <div style="font-size:11px;color:#8888a8;margin-bottom:8px;">Roblox Studio 플러그인이 연결되면 자동 실행됩니다.</div>
+    <div style="display:flex;gap:6px;">
+      <div style="flex:1;background:rgba(108,110,229,0.08);border-radius:8px;padding:6px 10px;font-size:10px;color:#6C6EE5;font-weight:500;word-break:break-all;">세션: ${roblumaSessionId}</div>
+    </div>
+  </div>`;
+
+  panel.innerHTML = html;
+}
+
+// ── 플러그인 세션 ID 복사 모달 ─────────────────────────────────
+function showPluginCodeModal() {
+  const old = document.getElementById('robluma-plugin-modal');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'robluma-plugin-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0);backdrop-filter:blur(0px);display:flex;align-items:center;justify-content:center;transition:background 0.28s ease,backdrop-filter 0.28s ease;';
+  requestAnimationFrame(() => {
+    overlay.style.background = 'rgba(0,0,0,0.4)';
+    overlay.style.backdropFilter = 'blur(6px)';
+  });
+
+  const closeModal = () => {
+    box.style.opacity = '0'; box.style.transform = 'translateY(12px) scale(0.97)';
+    overlay.style.background = 'rgba(0,0,0,0)'; overlay.style.backdropFilter = 'blur(0px)';
+    setTimeout(() => overlay.remove(), 280);
+  };
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:rgba(255,255,255,0.97);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,0.28);border-radius:18px;padding:24px;width:400px;max-width:95vw;display:flex;flex-direction:column;gap:14px;box-shadow:0 12px 40px rgba(108,110,229,0.18);font-family:\'Pretendard\',-apple-system,sans-serif;opacity:0;transform:translateY(20px) scale(0.97);transition:opacity 0.3s cubic-bezier(0.34,1.4,0.64,1),transform 0.3s cubic-bezier(0.34,1.4,0.64,1);';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    box.style.opacity = '1';
+    box.style.transform = 'translateY(0) scale(1)';
+  }));
+
+  box.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:15px;font-weight:600;color:#18181c;display:flex;align-items:center;gap:8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6C6EE5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        RobLuma 플러그인 연결
+      </div>
+      <button onclick="document.getElementById('robluma-plugin-modal').remove()" style="background:none;border:none;cursor:pointer;color:#8888a8;font-size:20px;line-height:1;">×</button>
+    </div>
+    <div style="font-size:12px;color:#4a4a60;line-height:1.6;background:rgba(108,110,229,0.06);border-radius:10px;padding:10px 13px;">
+      1. Roblox Studio에서 <b>RobLuma 플러그인</b>을 실행하세요<br/>
+      2. 플러그인 패널의 <b>세션 ID 입력칸</b>에 아래 ID를 붙여넣고 Enter<br/>
+      3. 연결되면 이 사이트에서 명령 시 Studio에 자동 적용됩니다
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <div style="font-size:11px;font-weight:500;color:#8888a8;letter-spacing:0.3px;">내 세션 ID</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div id="robluma-session-display" style="flex:1;background:rgba(24,24,28,0.04);border:1px solid rgba(108,110,229,0.15);border-radius:10px;padding:10px 13px;font-family:'Menlo','Consolas',monospace;font-size:13px;color:#18181c;word-break:break-all;">${roblumaSessionId}</div>
+        <button id="robluma-copy-session-btn" onclick="
+          navigator.clipboard.writeText('${roblumaSessionId}').then(() => {
+            this.textContent = '복사됨';
+            this.style.background = 'linear-gradient(135deg,#2e7d32,#43a047)';
+            setTimeout(() => {
+              this.textContent = '복사';
+              this.style.background = 'linear-gradient(135deg,#6C6EE5,#8FA8F8)';
+            }, 2000);
+          });
+        " style="flex-shrink:0;padding:10px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#6C6EE5,#8FA8F8);font-family:'Pretendard',-apple-system,sans-serif;font-size:13px;font-weight:600;color:#fff;cursor:pointer;transition:opacity 0.15s;">복사</button>
+      </div>
+    </div>
+    <button onclick="document.getElementById('robluma-plugin-modal').remove()" style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.28);background:rgba(255,255,255,0.6);font-family:'Pretendard',-apple-system,sans-serif;font-size:13px;font-weight:500;color:#4a4a60;cursor:pointer;">닫기</button>
+  `;
+
+  overlay.appendChild(box);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+  document.body.appendChild(overlay);
+}
+
+
+function showRoblumaOfflinePopup(onKeyConfirmed) {
+  if (roblumaGeminiKey) { onKeyConfirmed(roblumaGeminiKey); return; }
+  const old = document.getElementById('robluma-popup-overlay');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'robluma-popup-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0);backdrop-filter:blur(0px);display:flex;align-items:center;justify-content:center;transition:background 0.28s ease,backdrop-filter 0.28s ease;';
+  // 오버레이 페이드인
+  requestAnimationFrame(() => {
+    overlay.style.background = 'rgba(0,0,0,0.35)';
+    overlay.style.backdropFilter = 'blur(6px)';
+  });
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:rgba(255,255,255,0.97);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,0.28);border-radius:18px;padding:28px 28px 24px;width:360px;max-width:90vw;box-shadow:0 12px 40px rgba(108,110,229,0.18);font-family:\'Pretendard\',-apple-system,sans-serif;display:flex;flex-direction:column;gap:14px;opacity:0;transform:translateY(24px) scale(0.96);transition:opacity 0.32s cubic-bezier(0.34,1.4,0.64,1),transform 0.32s cubic-bezier(0.34,1.4,0.64,1);';
+  // 박스 슬라이드업 애니메이션
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    box.style.opacity = '1';
+    box.style.transform = 'translateY(0) scale(1)';
+  }));
+
+  const banner = document.createElement('div');
+  banner.style.cssText = 'background:rgba(229,57,53,0.08);border:1px solid rgba(229,57,53,0.2);border-radius:10px;padding:11px 14px;display:flex;align-items:center;gap:10px;';
+  banner.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e53935" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><div><div style="font-size:13px;font-weight:600;color:#c62828;">RobLuma 서버가 꺼져있어요</div><div style="font-size:12px;color:#888;margin-top:2px;">외부 Gemini API로 대체합니다</div></div>';
+
+  const desc = document.createElement('div');
+  desc.style.cssText = 'font-size:13px;color:#4a4a60;line-height:1.6;';
+  desc.innerHTML = '계속 사용하려면 <strong>Google Gemini API 키</strong>를 입력해주세요.<br/><span style="color:#8888a8;font-size:12px;">키는 이 세션 동안만 유지되며 저장되지 않습니다.</span>';
+
+  const inputWrap = document.createElement('div');
+  inputWrap.style.cssText = 'position:relative;';
+
+  const keyInput = document.createElement('input');
+  keyInput.type = 'password';
+  keyInput.placeholder = 'AIza...로 시작하는 Gemini API 키';
+  keyInput.style.cssText = 'width:100%;padding:10px 38px 10px 13px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.7);font-family:\'Pretendard\',-apple-system,sans-serif;font-size:13px;color:#18181c;outline:none;transition:border-color 0.2s;box-sizing:border-box;';
+  keyInput.addEventListener('focus', () => keyInput.style.borderColor = 'rgba(108,110,229,0.45)');
+  keyInput.addEventListener('blur',  () => keyInput.style.borderColor = 'rgba(255,255,255,0.28)');
+
+  const eyeBtn = document.createElement('button');
+  eyeBtn.style.cssText = 'position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:2px;color:#8888a8;display:flex;align-items:center;';
+  eyeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  let eyeVisible = false;
+  eyeBtn.onclick = () => {
+    eyeVisible = !eyeVisible;
+    keyInput.type = eyeVisible ? 'text' : 'password';
+    eyeBtn.innerHTML = eyeVisible
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  };
+
+  inputWrap.appendChild(keyInput);
+  inputWrap.appendChild(eyeBtn);
+
+  const errMsg = document.createElement('div');
+  errMsg.style.cssText = 'font-size:12px;color:#e53935;min-height:16px;display:none;';
+
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px;';
+
+  const cancelBtn = document.createElement('button');
+  const closePopup = (cb) => {
+    box.style.opacity = '0';
+    box.style.transform = 'translateY(16px) scale(0.97)';
+    overlay.style.background = 'rgba(0,0,0,0)';
+    overlay.style.backdropFilter = 'blur(0px)';
+    setTimeout(() => { overlay.remove(); if (cb) cb(); }, 280);
+  };
+
+  cancelBtn.textContent = '취소';
+  cancelBtn.style.cssText = 'flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.28);background:rgba(255,255,255,0.6);font-family:\'Pretendard\',-apple-system,sans-serif;font-size:13px;font-weight:500;color:#4a4a60;cursor:pointer;transition:background 0.15s;';
+  cancelBtn.onmouseover = () => cancelBtn.style.background = 'rgba(255,255,255,0.9)';
+  cancelBtn.onmouseout  = () => cancelBtn.style.background = 'rgba(255,255,255,0.6)';
+  cancelBtn.onclick = () => closePopup(() => { busy = false; sendBtnEl.disabled = false; });
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.textContent = '연결하기';
+  confirmBtn.style.cssText = 'flex:2;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,#6C6EE5,#8FA8F8);font-family:\'Pretendard\',-apple-system,sans-serif;font-size:13px;font-weight:600;color:#fff;cursor:pointer;transition:opacity 0.15s;';
+  confirmBtn.onmouseover = () => confirmBtn.style.opacity = '0.88';
+  confirmBtn.onmouseout  = () => confirmBtn.style.opacity = '1';
+
+  const doConfirm = () => {
+    const k = keyInput.value.trim();
+    if (!k) { errMsg.textContent = 'API 키를 입력해주세요.'; errMsg.style.display = 'block'; return; }
+    if (!k.startsWith('AIza')) { errMsg.textContent = 'Gemini API 키는 AIza로 시작합니다.'; errMsg.style.display = 'block'; return; }
+    roblumaGeminiKey = k;
+    closePopup(() => onKeyConfirmed(k));
+  };
+  confirmBtn.onclick = doConfirm;
+  keyInput.addEventListener('keydown', e => { if (e.key === 'Enter') doConfirm(); });
+
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(confirmBtn);
+
+  const linkRow = document.createElement('div');
+  linkRow.style.cssText = 'text-align:center;';
+  linkRow.innerHTML = '<a href="https://aistudio.google.com/apikey" target="_blank" style="font-size:11px;color:#6C6EE5;text-decoration:none;">Google AI Studio에서 무료 키 발급 →</a>';
+
+  box.appendChild(banner);
+  box.appendChild(desc);
+  box.appendChild(inputWrap);
+  box.appendChild(errMsg);
+  box.appendChild(btnRow);
+  box.appendChild(linkRow);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  setTimeout(() => keyInput.focus(), 80);
+}
+
+// Render 서버 URL (배포 후 실제 URL로 교체)
+const ROBLUMA_SERVER_URL = 'https://robluma-server.onrender.com';
+
+async function callRoblumaServer(message, history, apiKey, sessionId, onChunk, onActions) {
+  const res = await fetch(ROBLUMA_SERVER_URL + '/robluma/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history, apiKey, sessionId, stream: true }),
+    signal: AbortSignal.timeout(90000)
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const msg = err?.error || ('HTTP ' + res.status);
+    if (res.status === 403) roblumaGeminiKey = null;
+    throw new Error(msg);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') return;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.error) throw new Error(parsed.error);
+        if (parsed.actions && onActions) onActions(parsed.actions);
+        if (parsed.token) onChunk(parsed.token);
+      } catch(e) {
+        // JSON parse 실패는 무시, 실제 API 에러는 re-throw
+        if (e.message && !e.message.startsWith('JSON') && !e.message.includes('Unexpected')) throw e;
+      }
+    }
+  }
+}
+
+async function sendRoblumaMsg() {
+  if (busy) return;
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  busy = true;
+  sendBtnEl.disabled = true;
+
+  showRoblumaOfflinePopup(async (apiKey) => {
+    if (!currentChatId) {
+      currentChatId = genId();
+      chats[currentChatId] = {
+        title: text.slice(0, 30) + (text.length > 30 ? '…' : ''),
+        messages: [],
+        updatedAt: Date.now()
+      };
+      saveChats();
+      renderSidebar();
+    }
+    const thisChatId = currentChatId;
+
+    const history = [];
+    const msgs = chats[thisChatId].messages;
+    for (let i = 0; i + 1 < msgs.length; i += 2) {
+      if (msgs[i] && msgs[i+1]) history.push([msgs[i].content, msgs[i+1].content]);
+    }
+
+    input.value = '';
+    input.style.height = 'auto';
+    attachedFiles.length = 0;
+    renderFileTags();
+
+    addMessage(text, 'user');
+    saveCurrentMessage('user', text);
+    showThinking();
+    updateThinking('RobLuma 생각하는 중...');
+
+    let fullAnswer = '';
+    let streamStarted = false;
+    let receivedActions = [];
+    const streamBubble = createStreamBubble();
+    const streamWrap = document.getElementById('stream-wrap');
+    if (streamWrap) streamWrap.style.display = 'none';
+
+    try {
+      await callRoblumaServer(text, history, apiKey, roblumaSessionId,
+        // 토큰 청크
+        (chunk) => {
+          if (!streamStarted) {
+            streamStarted = true;
+            removeThinking();
+            if (streamWrap) streamWrap.style.display = '';
+          }
+          fullAnswer += chunk;
+          // 스트리밍 중 ACTION 블록 숨기기
+          streamBubble.textContent = stripActions(fullAnswer);
+          chatArea.scrollTop = chatArea.scrollHeight;
+        },
+        // 액션 수신
+        (actions) => {
+          receivedActions = actions;
+        }
+      );
+
+      removeThinking();
+      if (currentChatId === thisChatId) {
+        const displayText = stripActions(fullAnswer);
+        finalizeStreamBubble(displayText);
+        if (receivedActions.length) dispatchActionsToPlugin(receivedActions);
+        saveCurrentMessage('assistant', fullAnswer);
+        renderSidebar();
+      }
+    } catch(e) {
+      removeThinking();
+      const sw = document.getElementById('stream-wrap');
+      if (sw) sw.remove();
+      if (currentChatId === thisChatId) {
+        if (e.message.includes('API_KEY_INVALID') || e.message.includes('API key') || e.message.includes('403')) {
+          roblumaGeminiKey = null;
+        }
+      const errText = (e.message.includes('API_KEY_INVALID') || e.message.includes('API key') || e.message.includes('403'))
+          ? 'API 키가 유효하지 않습니다. 다시 시도하면 키를 재입력할 수 있습니다.'
+          : ('RobLuma 오류: ' + e.message);
+        addMessage(errText, 'ai');
+      }
+    } finally {
+      busy = false;
+      sendBtnEl.disabled = false;
+      input.focus();
+    }
+  });
+}
+
+// ── 모델 팝업 ─────────────────────────────────────────────────
+function openModelPopup(e) {
+  e.stopPropagation();
+  const pill = document.getElementById('send-model-pill');
+  const box  = document.getElementById('model-popup-box');
+  const popup = document.getElementById('model-popup');
+  const rect = pill.getBoundingClientRect();
+  box.style.right  = (window.innerWidth - rect.right) + 'px';
+  box.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+  box.style.top  = '';
+  box.style.left = '';
+  // 팝업 열릴 때 Luma dot 연결 상태 반영
+  const lumaSpan = document.querySelector('.model-option[data-model="Luma 1.0"] span');
+  if (lumaSpan) lumaSpan.style.background = lumaConnected ? 'var(--brand)' : '#e53935';
+  popup.classList.add('open');
+}
+function closeModelPopup() {
+  document.getElementById('model-popup').classList.remove('open');
+}
+function selectModel(el) {
+  currentModel = el.dataset.model;
+  const dotColor = el.dataset.dot;
+  document.getElementById('send-model-label').textContent = currentModel;
+  const pillDot = document.getElementById('pill-dot');
+  pillDot.className = 'model-dot' + (dotColor === 'red' ? ' red' : '');
+  document.querySelectorAll('.model-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  closeModelPopup();
+  // RobLuma 선택 시 플러그인 버튼 표시
+  const pluginBtn = document.getElementById('robluma-plugin-btn');
+  if (pluginBtn) pluginBtn.style.display = currentModel === 'RobLuma' ? '' : 'none';
+}
+
+// dot 색상을 서버 연결 상태에 따라 업데이트
+let lumaConnected = true; // 서버 연결 상태 저장
+
+function updatePillDot(isConnected) {
+  lumaConnected = isConnected;
+  const color = isConnected ? 'var(--brand)' : '#e53935';
+  // pill dot
+  const pillDot = document.getElementById('pill-dot');
+  if (pillDot && currentModel === 'Luma 1.0') {
+    pillDot.style.background = color;
+  }
+  // 팝업 안 Luma 1.0 dot
+  const lumaOption = document.querySelector('.model-option[data-model="Luma 1.0"] span');
+  if (lumaOption) lumaOption.style.background = color;
+}
+
 // ── 메인 전송 ─────────────────────────────────────────────────
 async function sendMsg() {
   if (busy) return;
+  if (currentModel === 'RobLuma') { sendRoblumaMsg(); return; }
+  if (currentModel !== 'Luma 1.0') return;
   const input = document.getElementById('msg-input');
   const text = input.value.trim();
   if (!text) return;
@@ -1473,7 +2074,7 @@ async function sendMsg() {
   // 히스토리 구성
   const history = [];
   const msgs = chats[thisChatId].messages;
-  for (let i = 0; i < msgs.length - 1; i += 2) {
+  for (let i = 0; i + 1 < msgs.length; i += 2) {
     if (msgs[i] && msgs[i+1]) history.push([msgs[i].content, msgs[i+1].content]);
   }
 
