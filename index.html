@@ -1072,6 +1072,7 @@ function genId() {
 
 // ── 연결 상태 표시 ────────────────────────────────────────────
 async function checkConnection() {
+  // Luma 1.0 서버 체크
   try {
     const res = await fetch(API_URL + '?bypass=true', {
       method: 'POST',
@@ -1083,6 +1084,24 @@ async function checkConnection() {
   } catch(e) {
     updatePillDot(false);
   }
+
+  // RobLuma 서버 체크
+  try {
+    const res = await fetch(ROBLUMA_SERVER_URL + '/', {
+      signal: AbortSignal.timeout(6000)
+    });
+    updateRobLumaDot(res.ok);
+  } catch(e) {
+    updateRobLumaDot(false);
+  }
+}
+
+function updateRobLumaDot(isConnected) {
+  const color = isConnected ? 'var(--brand)' : '#e53935';
+  const roblumaOption = document.querySelector('.model-option[data-model="RobLuma"] span');
+  if (roblumaOption) roblumaOption.style.background = color;
+  const pillDot = document.getElementById('pill-dot');
+  if (pillDot && currentModel === 'RobLuma') pillDot.style.background = color;
 }
 
 // ── 상태바 ────────────────────────────────────────────────────
@@ -2020,10 +2039,20 @@ function closeModelPopup() {
 }
 function selectModel(el) {
   currentModel = el.dataset.model;
-  const dotColor = el.dataset.dot;
   document.getElementById('send-model-label').textContent = currentModel;
   const pillDot = document.getElementById('pill-dot');
-  pillDot.className = 'model-dot' + (dotColor === 'red' ? ' red' : '');
+  // pill-dot 색상: 모델별 실제 연결 상태 반영
+  if (currentModel === 'RobLuma') {
+    const robSpan = document.querySelector('.model-option[data-model="RobLuma"] span');
+    pillDot.style.background = robSpan ? robSpan.style.background : 'var(--brand)';
+    pillDot.className = 'model-dot';
+  } else if (currentModel === 'Luma 1.0') {
+    pillDot.style.background = lumaConnected ? 'var(--brand)' : '#e53935';
+    pillDot.className = 'model-dot';
+  } else {
+    pillDot.className = 'model-dot red';
+    pillDot.style.background = '';
+  }
   document.querySelectorAll('.model-option').forEach(o => o.classList.remove('selected'));
   el.classList.add('selected');
   closeModelPopup();
