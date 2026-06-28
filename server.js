@@ -84,7 +84,7 @@ async function callGeminiWithModel(apiKey, model, contents) {
     body: JSON.stringify({
       system_instruction: { parts: [{ text: ROBLUMA_SYSTEM }] },
       contents,
-      generationConfig: { temperature: 0.7, maxOutputTokens: 65536 }
+      generationConfig: { temperature: 0.7, maxOutputTokens: 6000 }
     }),
     signal: AbortSignal.timeout(90000)
   });
