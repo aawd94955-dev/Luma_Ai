@@ -84,7 +84,7 @@ async function callGeminiWithModel(apiKey, model, contents) {
     body: JSON.stringify({
       system_instruction: { parts: [{ text: ROBLUMA_SYSTEM }] },
       contents,
-      generationConfig: { temperature: 0.7, maxOutputTokens: 8192 }
+      generationConfig: { temperature: 0.7, maxOutputTokens: 65536 }
     }),
     signal: AbortSignal.timeout(90000)
   });
@@ -145,8 +145,15 @@ async function callGemini(apiKey, messages, onChunk) {
       if (raw === '[DONE]') return;
       try {
         const parsed = JSON.parse(raw);
-        const token = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const candidate = parsed?.candidates?.[0];
+        const token = candidate?.content?.parts?.[0]?.text || '';
         if (token) onChunk(token);
+        // 토큰 한도 초과 감지
+        if (candidate?.finishReason === 'MAX_TOKENS') {
+          onChunk('
+
+⚠️ 토큰 한도에 도달해 응답이 잘렸습니다.');
+        }
       } catch(e) { /* JSON 파싱 실패 무시 */ }
     }
   }
